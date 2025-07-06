@@ -72,22 +72,22 @@ jobs:
         
         # Create a minimal west.yml for testing
         mkdir -p .west
-        cat > west.yml << 'EOF'
-manifest:
-  self:
-    path: .
-  
-  remotes:
-    - name: zephyr
-      url-base: https://github.com/zephyrproject-rtos
-  
-  projects:
-    - name: zephyr
-      remote: zephyr
-      revision: v3.4.0
-      path: zephyr
-      import: true
-EOF
+        cat > west.yml << 'WESTEOF'
+        manifest:
+          self:
+            path: .
+          
+          remotes:
+            - name: zephyr
+              url-base: https://github.com/zephyrproject-rtos
+          
+          projects:
+            - name: zephyr
+              remote: zephyr
+              revision: v3.4.0
+              path: zephyr
+              import: true
+        WESTEOF
         
         echo "West manifest created:"
         cat west.yml
@@ -118,22 +118,22 @@ EOF
     - name: Create minimal west.yml
       run: |
         cd my-project
-        cat > west.yml << 'EOF'
-manifest:
-  self:
-    path: .
-  
-  remotes:
-    - name: zephyr
-      url-base: https://github.com/zephyrproject-rtos
-  
-  projects:
-    - name: zephyr
-      remote: zephyr
-      revision: v3.4.0
-      path: zephyr
-      import: true
-EOF
+        cat > west.yml << 'WESTEOF'
+        manifest:
+          self:
+            path: .
+          
+          remotes:
+            - name: zephyr
+              url-base: https://github.com/zephyrproject-rtos
+          
+          projects:
+            - name: zephyr
+              remote: zephyr
+              revision: v3.4.0
+              path: zephyr
+              import: true
+        WESTEOF
 
     - name: Initialize and update workspace
       run: |
@@ -164,22 +164,22 @@ EOF
     - name: Setup workspace
       run: |
         cd my-project
-        cat > west.yml << 'EOF'
-manifest:
-  self:
-    path: .
-  
-  remotes:
-    - name: zephyr
-      url-base: https://github.com/zephyrproject-rtos
-  
-  projects:
-    - name: zephyr
-      remote: zephyr
-      revision: v3.4.0
-      path: zephyr
-      import: true
-EOF
+        cat > west.yml << 'WESTEOF'
+        manifest:
+          self:
+            path: .
+          
+          remotes:
+            - name: zephyr
+              url-base: https://github.com/zephyrproject-rtos
+          
+          projects:
+            - name: zephyr
+              remote: zephyr
+              revision: v3.4.0
+              path: zephyr
+              import: true
+        WESTEOF
         
         west init -l .
         west update --narrow -o=--depth=1
