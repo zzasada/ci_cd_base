@@ -1,0 +1,6 @@
+west>=1.2.0
+nrfutil>=7.0.0
+pytest>=7.0.0
+pyserial>=3.5
+pylint>=2.15.0
+flake8>=5.0.0

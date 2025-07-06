@@ -1,0 +1,14 @@
+[MASTER]
+extension-pkg-whitelist=
+jobs=1
+persistent=yes
+suggestion-mode=yes
+unsafe-load-any-extension=no
+
+[MESSAGES CONTROL]
+disable=missing-docstring,
+        too-few-public-methods,
+        too-many-arguments,
+        too-many-locals,
+        too-many-branches,
+        too-many-statements

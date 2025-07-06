@@ -1,0 +1,54 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Unit Tests",
+            "type": "shell",
+            "command": "west",
+            "args": ["build", "-b", "native_posix", "my_app/tests/unit"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        },
+        {
+            "label": "Run Unit Tests",
+            "type": "shell",
+            "command": "west",
+            "args": ["build", "-b", "native_posix", "my_app/tests/unit", "-t", "run"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "dependsOn": "Build Unit Tests"
+        },
+        {
+            "label": "Build Main App",
+            "type": "shell",
+            "command": "west",
+            "args": ["build", "-b", "nrf52840dk_nrf52840", "my_app"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        }
+    ]
+}
