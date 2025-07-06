@@ -1,4 +1,4 @@
-name: Simple Zephyr CI
+name: Minimal Hello World Test
 
 on:
   push:
@@ -7,123 +7,201 @@ on:
     branches: [ main ]
 
 jobs:
-  # Start with just a basic build test
-  basic-build:
+  # Test 1: Basic container and tools
+  test-container:
     runs-on: ubuntu-latest
     container:
       image: nordicplayground/nrfconnect-sdk:v3.0-branch
 
     steps:
-    - name: Checkout code
+    - name: Test basic commands
+      run: |
+        echo "=== Testing Basic Environment ==="
+        echo "Current directory: $(pwd)"
+        echo "Current user: $(whoami)"
+        echo "Available disk space:"
+        df -h
+        
+        echo "=== Testing Required Tools ==="
+        which west || echo "west not found"
+        which arm-none-eabi-gcc || echo "arm-none-eabi-gcc not found"
+        which cmake || echo "cmake not found"
+        which ninja || echo "ninja not found"
+        
+        echo "=== Tool Versions ==="
+        west --version 2>/dev/null || echo "west version failed"
+        arm-none-eabi-gcc --version 2>/dev/null | head -1 || echo "gcc version failed"
+        cmake --version 2>/dev/null | head -1 || echo "cmake version failed"
+
+  # Test 2: Simple checkout
+  test-checkout:
+    runs-on: ubuntu-latest
+    needs: test-container
+    container:
+      image: nordicplayground/nrfconnect-sdk:v3.0-branch
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Check repository contents
+      run: |
+        echo "=== Repository Contents ==="
+        ls -la
+        echo "Current directory: $(pwd)"
+        echo "Git status:"
+        git status || echo "Not a git repository or git not available"
+
+  # Test 3: Initialize minimal west workspace
+  test-west-init:
+    runs-on: ubuntu-latest
+    needs: test-checkout
+    container:
+      image: nordicplayground/nrfconnect-sdk:v3.0-branch
+
+    steps:
+    - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        path: project
+        path: my-project
 
-    - name: Verify environment
+    - name: Create minimal west.yml
       run: |
-        echo "=== Environment Check ==="
-        which west
-        which arm-none-eabi-gcc
-        west --version
-        arm-none-eabi-gcc --version
+        echo "=== Creating Minimal West Manifest ==="
+        cd my-project
+        
+        # Create a minimal west.yml for testing
+        mkdir -p .west
+        cat > west.yml << 'EOF'
+manifest:
+  self:
+    path: .
+  
+  remotes:
+    - name: zephyr
+      url-base: https://github.com/zephyrproject-rtos
+  
+  projects:
+    - name: zephyr
+      remote: zephyr
+      revision: v3.4.0
+      path: zephyr
+      import: true
+EOF
+        
+        echo "West manifest created:"
+        cat west.yml
 
-    - name: Initialize workspace
+    - name: Initialize west workspace
       run: |
         echo "=== Initializing West Workspace ==="
-        west init -l project
-        cd project
-        west update --narrow -o=--depth=1
-
-    - name: Build simple sample
-      run: |
-        echo "=== Building Hello World Sample ==="
-        cd project
-        source zephyr/zephyr-env.sh
-        west build -b nrf52840dk_nrf52840 zephyr/samples/hello_world
+        cd my-project
+        west init -l .
+        echo "West initialization complete"
         
-        echo "=== Build Results ==="
-        ls -la build/zephyr/
-        arm-none-eabi-size build/zephyr/zephyr.elf
+        echo "=== West Status ==="
+        west list || echo "West list failed"
 
-    - name: Upload build artifact
-      uses: actions/upload-artifact@v3
-      with:
-        name: hello-world-firmware
-        path: project/build/zephyr/zephyr.hex
-
-  # Test your actual application (only if basic build works)
-  app-build:
+  # Test 4: Update workspace (this might take time)
+  test-west-update:
     runs-on: ubuntu-latest
-    needs: basic-build
+    needs: test-west-init
     container:
       image: nordicplayground/nrfconnect-sdk:v3.0-branch
 
     steps:
-    - name: Checkout code
+    - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        path: project
+        path: my-project
 
-    - name: Initialize workspace  
+    - name: Create minimal west.yml
       run: |
-        west init -l project
-        cd project
+        cd my-project
+        cat > west.yml << 'EOF'
+manifest:
+  self:
+    path: .
+  
+  remotes:
+    - name: zephyr
+      url-base: https://github.com/zephyrproject-rtos
+  
+  projects:
+    - name: zephyr
+      remote: zephyr
+      revision: v3.4.0
+      path: zephyr
+      import: true
+EOF
+
+    - name: Initialize and update workspace
+      run: |
+        echo "=== Initializing West Workspace ==="
+        cd my-project
+        west init -l .
+        
+        echo "=== Updating Workspace (this may take a few minutes) ==="
+        west update --narrow -o=--depth=1
+        
+        echo "=== Workspace Contents ==="
+        ls -la
+        ls -la zephyr/ || echo "Zephyr directory not found"
+
+  # Test 5: Build hello world sample
+  test-hello-world:
+    runs-on: ubuntu-latest
+    needs: test-west-update
+    container:
+      image: nordicplayground/nrfconnect-sdk:v3.0-branch
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        path: my-project
+
+    - name: Setup workspace
+      run: |
+        cd my-project
+        cat > west.yml << 'EOF'
+manifest:
+  self:
+    path: .
+  
+  remotes:
+    - name: zephyr
+      url-base: https://github.com/zephyrproject-rtos
+  
+  projects:
+    - name: zephyr
+      remote: zephyr
+      revision: v3.4.0
+      path: zephyr
+      import: true
+EOF
+        
+        west init -l .
         west update --narrow -o=--depth=1
 
-    - name: Build application
+    - name: Build hello world
       run: |
-        cd project
+        echo "=== Setting up Zephyr Environment ==="
+        cd my-project
         source zephyr/zephyr-env.sh
         
-        # Check if app directory exists
-        if [ ! -d "app" ]; then
-          echo "Creating minimal app for testing..."
-          mkdir -p app/src
-          
-          # Create minimal CMakeLists.txt
-          cat > app/CMakeLists.txt << 'EOF'
-cmake_minimum_required(VERSION 3.20.0)
-find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
-project(test_app)
-target_sources(app PRIVATE src/main.c)
-EOF
-          
-          # Create minimal prj.conf
-          cat > app/prj.conf << 'EOF'
-CONFIG_LOG=y
-CONFIG_LOG_DEFAULT_LEVEL=3
-EOF
-          
-          # Create minimal main.c
-          cat > app/src/main.c << 'EOF'
-#include <zephyr/kernel.h>
-#include <zephyr/logging/log.h>
-
-LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
-
-int main(void)
-{
-    LOG_INF("Hello from test application!");
-    
-    while (1) {
-        LOG_INF("Application running...");
-        k_sleep(K_SECONDS(5));
-    }
-    
-    return 0;
-}
-EOF
-        fi
+        echo "=== Building Hello World Sample ==="
+        west build -b qemu_x86 zephyr/samples/hello_world
         
-        # Build the application
-        west build -b nrf52840dk_nrf52840 app/
-        
-        echo "=== Application Build Results ==="
+        echo "=== Build Success! ==="
+        echo "Build artifacts:"
         ls -la build/zephyr/
-        arm-none-eabi-size build/zephyr/zephyr.elf
+        
+        echo "Binary size:"
+        ls -lh build/zephyr/zephyr.elf
 
-    - name: Upload app artifact
+    - name: Upload hello world artifact
       uses: actions/upload-artifact@v3
       with:
-        name: app-firmware
-        path: project/build/zephyr/zephyr.hex
+        name: hello-world-qemu
+        path: my-project/build/zephyr/zephyr.elf
