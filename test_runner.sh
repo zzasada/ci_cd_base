@@ -1,6 +1,6 @@
 #!/bin/bash
 echo "=== Building Unit Tests ==="
-cd /workdir/project/my_blinky/tests
+cd /workdir/project/ci_cd_base/tests
 west build -b native_sim --build-dir build_test -p always
 
 if [ $? -eq 0 ]; then

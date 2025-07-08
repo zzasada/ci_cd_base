@@ -1,56 +1,42 @@
-# Prerequisites
-*.d
+# Build directories
+build/
+build_*/
+*build*/
+twister-out*/
+coverage_report/
 
-# Object files
-*.o
-*.ko
-*.obj
-*.elf
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
-# Linker output
-*.ilk
-*.map
-*.exp
+# OS files
+.DS_Store
+Thumbs.db
 
-# Precompiled Headers
-*.gch
-*.pch
-
-# Libraries
-*.lib
-*.a
-*.la
-*.lo
-
-# Shared objects (inc. Windows DLLs)
-*.dll
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
 *.so
-*.so.*
-*.dylib
+.Python
+env/
+venv/
 
-# Executables
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
+# Coverage files
+*.gcov
+*.gcda
+*.gcno
+*.info
+htmlcov/
+.coverage
 
-# Debug files
-*.dSYM/
-*.su
-*.idb
-*.pdb
+# Docker
+.dockerignore
 
-# Kernel Module Compile Results
-*.mod*
-*.cmd
-.tmp_versions/
-modules.order
-Module.symvers
-Mkfile.old
-dkms.conf
-
-# Local files
-/build*/
-build*/
+# Temporary files
+*.tmp
+*.temp
+*.log

@@ -1,5 +1,5 @@
 tests:
-  my_blinky.unit_tests:
+  ci_cd_base.unit_tests:
     tags: unit_test
     platform_allow:
       - native_sim
