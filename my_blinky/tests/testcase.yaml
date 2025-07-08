@@ -1,0 +1,9 @@
+tests:
+  my_blinky.unit_tests:
+    tags: unit_test
+    platform_allow:
+      - native_sim
+      - native_posix
+      - qemu_x86
+    integration_platforms:
+      - native_sim
