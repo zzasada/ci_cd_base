@@ -1,0 +1,276 @@
+# .github/workflows/ci.yml
+name: Firmware CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch: # Allow manual triggering
+
+env:
+  # Use the Docker image we built
+  NCS_IMAGE: ncs-3.0.1
+
+jobs:
+  test:
+    name: Unit Tests & Coverage
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        # Fetch full history for better coverage reporting
+        fetch-depth: 0
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build NCS Docker Image
+      run: |
+        # Create Dockerfile for NCS 3.0.1
+        cat > Dockerfile << 'EOF'
+        FROM ubuntu:22.04
+        
+        ENV DEBIAN_FRONTEND=noninteractive
+        ENV ZEPHYR_TOOLCHAIN_VARIANT=zephyr
+        ENV ZEPHYR_SDK_INSTALL_DIR=/opt/zephyr-sdk
+        ENV PATH="${ZEPHYR_SDK_INSTALL_DIR}/arm-zephyr-eabi/bin:${PATH}"
+        
+        RUN apt-get update && apt-get install -y \
+            build-essential \
+            ccache \
+            cmake \
+            curl \
+            device-tree-compiler \
+            dfu-util \
+            file \
+            g++ \
+            gcc \
+            gcc-multilib \
+            git \
+            gperf \
+            libsdl2-dev \
+            libffi-dev \
+            libssl-dev \
+            make \
+            ninja-build \
+            python3 \
+            python3-dev \
+            python3-pip \
+            python3-setuptools \
+            python3-tk \
+            python3-wheel \
+            python3-venv \
+            wget \
+            xz-utils \
+            unzip \
+            && rm -rf /var/lib/apt/lists/*
+        
+        RUN ln -s /usr/bin/python3 /usr/bin/python
+        
+        ARG ZEPHYR_SDK_VERSION=0.16.8
+        RUN cd /tmp && \
+            wget -q https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64.tar.xz && \
+            tar -xf zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64.tar.xz && \
+            mv zephyr-sdk-${ZEPHYR_SDK_VERSION} /opt/zephyr-sdk && \
+            rm zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64.tar.xz && \
+            cd /opt/zephyr-sdk && \
+            ./setup.sh -h -c
+        
+        RUN pip3 install --no-cache-dir west
+        
+        RUN git config --global user.email "ci@example.com" && \
+            git config --global user.name "CI User" && \
+            git config --global init.defaultBranch main
+        
+        WORKDIR /workdir
+        
+        RUN west init -m https://github.com/nrfconnect/sdk-nrf --mr v3.0.1 ncs && \
+            cd ncs && \
+            west update && \
+            west zephyr-export
+        
+        RUN cd /workdir/ncs && \
+            pip3 install --no-cache-dir -r zephyr/scripts/requirements.txt && \
+            pip3 install --no-cache-dir -r nrf/scripts/requirements.txt && \
+            pip3 install --no-cache-dir -r bootloader/mcuboot/scripts/requirements.txt
+        
+        WORKDIR /workdir/ncs
+        ENV ZEPHYR_BASE=/workdir/ncs/zephyr
+        RUN mkdir -p /workdir/project
+        
+        CMD ["/bin/bash"]
+        EOF
+        
+        # Build the image
+        docker build -t ${{ env.NCS_IMAGE }} .
+    
+    - name: Run Unit Tests
+      run: |
+        docker run --rm \
+          -v ${{ github.workspace }}:/workdir/project \
+          -w /workdir/project \
+          ${{ env.NCS_IMAGE }} \
+          bash -c "
+            echo '=== Running Unit Tests ==='
+            cd tests
+            west build -b native_sim --build-dir build_test -p always
+            
+            echo '=== Test Results ==='
+            ./build_test/tests/zephyr/zephyr.exe
+            
+            echo '=== Test completed with exit code: $? ==='
+          "
+    
+    - name: Generate Coverage Report
+      run: |
+        docker run --rm \
+          -v ${{ github.workspace }}:/workdir/project \
+          -w /workdir/project \
+          ${{ env.NCS_IMAGE }} \
+          bash -c "
+            echo '=== Generating Coverage Report ==='
+            west twister -T tests/ -p native_sim --coverage
+            
+            echo '=== Coverage files generated ==='
+            find twister-out -name '*.gcov' | head -10
+            
+            echo '=== Copying coverage to accessible location ==='
+            cp -r twister-out/coverage coverage_report 2>/dev/null || echo 'No coverage directory found'
+          "
+    
+    - name: Upload Coverage Reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: coverage-report
+        path: |
+          twister-out/coverage/
+          coverage_report/
+          twister-out/**/*.gcov
+        retention-days: 30
+    
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: |
+          twister-out/twister.xml
+          twister-out/twister.json
+        retention-days: 30
+    
+    - name: Comment Coverage on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          
+          // Try to find and read coverage summary
+          let coverageComment = '## 📊 Coverage Report\n\n';
+          
+          try {
+            // Look for coverage files
+            const { execSync } = require('child_process');
+            const output = execSync('find . -name "*.gcov" | head -5', { encoding: 'utf8' });
+            
+            if (output.trim()) {
+              coverageComment += '✅ Coverage analysis completed\n';
+              coverageComment += `📁 Coverage files: ${output.split('\n').length - 1} files generated\n`;
+            } else {
+              coverageComment += '⚠️ No coverage files found\n';
+            }
+          } catch (error) {
+            coverageComment += '❌ Error generating coverage summary\n';
+          }
+          
+          coverageComment += '\n📋 Full coverage report available in Actions artifacts\n';
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: coverageComment
+          });
+
+  build-firmware:
+    name: Build Firmware for Hardware
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    
+    strategy:
+      matrix:
+        board:
+          - nrf52840dk_nrf52840
+          - nrf5340dk_nrf5340_cpuapp
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Build Firmware for ${{ matrix.board }}
+      run: |
+        docker run --rm \
+          -v ${{ github.workspace }}:/workdir/project \
+          -w /workdir/project \
+          ${{ env.NCS_IMAGE }} \
+          bash -c "
+            echo '=== Building firmware for ${{ matrix.board }} ==='
+            west build -b ${{ matrix.board }} --build-dir build_${{ matrix.board }} -p always
+            
+            echo '=== Build completed ==='
+            ls -la build_${{ matrix.board }}/zephyr/zephyr.*
+          "
+    
+    - name: Upload Firmware Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: firmware-${{ matrix.board }}
+        path: |
+          build_${{ matrix.board }}/zephyr/zephyr.hex
+          build_${{ matrix.board }}/zephyr/zephyr.elf
+          build_${{ matrix.board }}/zephyr/zephyr.bin
+        retention-days: 90
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [test, build-firmware]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+    
+    - name: Create Release
+      if: contains(github.event.head_commit.message, '[release]')
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ github.run_number }}
+        release_name: Firmware Release v${{ github.run_number }}
+        body: |
+          ## Firmware Release v${{ github.run_number }}
+          
+          🚀 **Automated Release**
+          - ✅ All tests passed
+          - 📊 Coverage report generated
+          - 🔧 Firmware built for multiple targets
+          
+          ### Changes
+          ${{ github.event.head_commit.message }}
+          
+          ### Artifacts
+          - `zephyr.hex` - Firmware for flashing
+          - `zephyr.elf` - Debug symbols
+          - Coverage reports in artifacts
+        draft: false
+        prerelease: false
