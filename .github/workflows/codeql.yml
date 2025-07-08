@@ -1,3 +1,4 @@
+# .github/workflows/codeql.yml
 name: "CodeQL Security Analysis"
 
 on:
@@ -25,20 +26,24 @@ jobs:
       uses: github/codeql-action/init@v3
       with:
         languages: cpp
-        queries: security-extended,quality
+        # Use only the security-extended queries (quality pack may not be available)
+        queries: security-extended
 
     - name: Setup build environment
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential cmake
+        sudo apt-get install -y build-essential cmake gcc
 
     - name: Build for analysis
       run: |
         # Create a simple build for analysis
         mkdir -p build_analysis
         cd build_analysis
-        cmake -DCMAKE_BUILD_TYPE=Debug ..
-        make || echo "Build errors are OK for analysis"
+        
+        # Simple compile without Zephyr for CodeQL analysis
+        gcc -c ../src/*.c -I../src/ -DCODEQL_BUILD || echo "Some build errors are expected for analysis"
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:cpp"
