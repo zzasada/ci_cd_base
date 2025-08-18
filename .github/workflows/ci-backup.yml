@@ -19,7 +19,7 @@ jobs:
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         # Fetch full history for better coverage reporting
         fetch-depth: 0
@@ -210,7 +210,7 @@ jobs:
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     
     - name: Build Firmware for ${{ matrix.board }}
       run: |
@@ -244,7 +244,7 @@ jobs:
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     
     - name: Download all artifacts
       uses: actions/download-artifact@v4
